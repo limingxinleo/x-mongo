@@ -8,6 +8,11 @@
 // +----------------------------------------------------------------------
 namespace Xin;
 
+use MongoDB\BSON\UTCDateTime;
+use MongoDB\Driver\Query;
+use MongoDB\Driver\WriteConcern;
+use MongoDB\Driver\BulkWrite;
+
 class Mongo
 {
     protected static $_instance = [];
@@ -33,7 +38,6 @@ class Mongo
         $this->manager = new \MongoDB\Driver\Manager($uri, $options);
     }
 
-
     /**
      * 防止克隆
      */
@@ -58,6 +62,101 @@ class Mongo
         }
 
         return static::$_instance[$key] = new static($host, $port, $options);
+    }
+
+    /**
+     * @desc   查询
+     * @author limx
+     * @param string $namespace A fully qualified namespace (databaseName.collectionName)
+     * @param array  $filter
+     * @param array  $options
+     * @return array(obj,obj)
+     *
+     *  $filter = ['id' => ['$gt' => 1]];
+     *  $options = [
+     *      'projection' => ['_id' => 0],
+     *      'sort' => ['id' => -1],
+     *      'limit' => 1,
+     *  ];
+     */
+    public function query($namespace, $filter = [], $options = [])
+    {
+        $query = new Query($filter, $options);
+        $cursor = $this->manager->executeQuery($namespace, $query);
+
+        return $cursor->toArray();
+    }
+
+    /**
+     * @desc   插入一条数据
+     * @author limx
+     * @param string $namespace A fully qualified namespace (databaseName.collectionName)
+     * @param array  $document
+     * @return \MongoDB\Driver\WriteResult;
+     */
+    public function insert($namespace, $document)
+    {
+        $writeConcern = new WriteConcern(WriteConcern::MAJORITY, 1000);
+        $bulk = new BulkWrite();
+        $bulk->insert($document);
+        return $this->manager->executeBulkWrite($namespace, $bulk, $writeConcern);
+    }
+
+    /**
+     * @desc   批量插入数据
+     * @author limx
+     * @param string $namespace A fully qualified namespace (databaseName.collectionName)
+     * @param array  $documents
+     * @return \MongoDB\Driver\WriteResult
+     */
+    public function insertMany($namespace, $documents)
+    {
+        $writeConcern = new WriteConcern(WriteConcern::MAJORITY, 1000);
+        $bulk = new BulkWrite();
+        foreach ($documents as $doc) {
+            $bulk->insert($doc);
+        }
+        return $this->manager->executeBulkWrite($namespace, $bulk, $writeConcern);
+    }
+
+    /**
+     * @desc   更新数据
+     * @author limx
+     * @param string $namespace A fully qualified namespace (databaseName.collectionName)
+     * @param array  $filter
+     * @param array  $newObj
+     * @param array  $updateOptions
+     * @return \MongoDB\Driver\WriteResult;
+     *
+     *  $document = ['name' => uniqid()];
+     *  $filter = ['id' => 999];
+     *  $options = [
+     *      'upsert' => true,
+     *      'multi' => true,
+     *  ];
+     */
+    public function update($namespace, $filter, $newObj, array $updateOptions = [])
+    {
+        $writeConcern = new WriteConcern(WriteConcern::MAJORITY, 1000);
+        $bulk = new BulkWrite();
+        $bulk->update($filter, ['$set' => $newObj], $updateOptions);
+        return $this->manager->executeBulkWrite($namespace, $bulk, $writeConcern);
+    }
+
+    /**
+     * @desc   删除文档
+     * @author limx
+     * @param string $namespace A fully qualified namespace (databaseName.collectionName)
+     * @param array  $filter
+     * @param array  $deleteOptions
+     * @return \MongoDB\Driver\WriteResult;
+     */
+    public function delete($namespace, $filter, array $deleteOptions = [])
+    {
+        $writeConcern = new WriteConcern(WriteConcern::MAJORITY, 1000);
+        $bulk = new BulkWrite();
+        $bulk->delete($filter, $deleteOptions);
+        return $this->manager->executeBulkWrite($namespace, $bulk, $writeConcern);
     }
 
     /**
